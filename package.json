@@ -1,0 +1,32 @@
+{
+  "name": "stabapay",
+  "version": "1.0.0",
+  "description": "A payment app using USDC stablecoins",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "nodemon server/index.js",
+    "client": "cd client && npm start",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@privy-io/react-auth": "^1.40.3",
+    "@privy-io/server-auth": "^1.4.1",
+    "express": "^4.18.2",
+    "dotenv": "^16.3.1",
+    "cors": "^2.8.5",
+    "pg": "^8.11.3",
+    "ethers": "^6.8.1",
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.8.2",
+    "@types/react": "^18.2.25",
+    "concurrently": "^8.2.1",
+    "nodemon": "^3.0.1",
+    "typescript": "^5.2.2",
+    "jest": "^29.7.0"
+  }
+}
