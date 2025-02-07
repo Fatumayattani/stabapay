@@ -64,9 +64,10 @@ The application follows a modern web architecture:
 - Rate limiting for API endpoints
 
 ## Contributors
-adugyimah6776@gmail.com
-fredyomoke@gmail.com
-fyattani@gmail.com
+- [adugyimah6776@gmail.com](mailto:adugyimah6776@gmail.com)  
+- [fredyomoke@gmail.com](mailto:fredyomoke@gmail.com)  
+- [fyattani@gmail.com](mailto:fyattani@gmail.com)  
+
 
 
 
