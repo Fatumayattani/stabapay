@@ -62,3 +62,14 @@ The application follows a modern web architecture:
 - API keys and secrets are stored as environment variables
 - Input validation and sanitization
 - Rate limiting for API endpoints
+
+## Contributors
+adugyimah6776@gmail.com
+fredyomoke@gmail.com
+fyattani@gmail.com
+
+
+
+
+
+
