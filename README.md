@@ -19,6 +19,16 @@ StabaPay is a modern web application that enables seamless peer-to-peer payments
 - Fiat On-ramp: Bridge API
 - Database: PostgreSQL
 
+## Environment Variables
+
+Create a `.env` file with the following variables:
+
+```
+PRIVY_APP_ID=your_privy_app_id
+PRIVY_SECRET_KEY=your_privy_secret_key
+BRIDGE_API_KEY=your_bridge_api_key
+DATABASE_URL=your_database_url
+
 ## Getting Started
 
 1. Clone the repository
