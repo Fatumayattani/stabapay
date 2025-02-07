@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -13,188 +13,130 @@ import {
   ListItemSecondaryAction,
   Avatar,
   IconButton,
-  Button,
   TextField,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Alert,
+  InputAdornment,
+  CircularProgress,
+  Snackbar,
 } from '@mui/material';
-import { usePrivy } from '@privy-io/react-auth';
+import SearchIcon from '@mui/icons-material/Search';
 import SendIcon from '@mui/icons-material/Send';
-import PersonAddIcon from '@mui/icons-material/PersonAdd';
-import { ethers } from 'ethers';
-
-interface Contact {
-  id: string;
-  name: string;
-  address: string;
-  avatar?: string;
-}
+import { useAuth } from '../context/AuthContext';
+import { userAPI, User } from '../services/api';
 
 const Contacts: React.FC = () => {
-  const { user } = usePrivy();
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [openDialog, setOpenDialog] = useState(false);
-  const [newContact, setNewContact] = useState({
-    name: '',
-    address: '',
-  });
 
-  useEffect(() => {
-    fetchContacts();
-  }, []);
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query);
+    if (query.length < 3) {
+      setSearchResults([]);
+      return;
+    }
 
-  const fetchContacts = async () => {
+    setLoading(true);
     try {
-      const response = await fetch(`/api/users/${user?.id}/contacts`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch contacts');
-      }
-      const data = await response.json();
-      setContacts(data.contacts);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load contacts');
+      const { data } = await userAPI.searchUsers(query);
+      setSearchResults(data.filter((u: User) => u.id !== user?.id));
+    } catch (err) {
+      setError('Failed to search users');
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAddContact = async () => {
-    if (!ethers.isAddress(newContact.address)) {
-      setError('Invalid wallet address');
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/users/${user?.id}/contacts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newContact),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to add contact');
-      }
-
-      await fetchContacts();
-      setOpenDialog(false);
-      setNewContact({ name: '', address: '' });
-    } catch (err: any) {
-      setError(err.message || 'Failed to add contact');
-    }
+  const handleSendPayment = (address: string) => {
+    navigate('/send', { state: { recipientAddress: address } });
   };
 
-  const handleSendPayment = (address: string) => {
-    navigate('/send', { state: { recipient: address } });
+  const truncateAddress = (address: string) => {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
   return (
     <Container maxWidth="md">
       <Box sx={{ mt: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-          <Typography variant="h4" component="h1">
-            Contacts
-          </Typography>
-          <Button
-            variant="contained"
-            startIcon={<PersonAddIcon />}
-            onClick={() => setOpenDialog(true)}
-          >
-            Add Contact
-          </Button>
-        </Box>
-
-        {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            {error}
-          </Alert>
-        )}
+        <Typography variant="h4" component="h1" gutterBottom>
+          Find Users
+        </Typography>
 
         <Card>
           <CardContent>
-            <List>
-              {contacts.map((contact) => (
-                <ListItem key={contact.id}>
+            <TextField
+              fullWidth
+              label="Search by username or wallet address"
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              variant="outlined"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+                endAdornment: loading && (
+                  <InputAdornment position="end">
+                    <CircularProgress size={20} />
+                  </InputAdornment>
+                ),
+              }}
+            />
+
+            <List sx={{ mt: 2 }}>
+              {searchResults.map((result) => (
+                <ListItem
+                  key={result.id}
+                  divider
+                  sx={{
+                    '&:last-child': {
+                      borderBottom: 'none',
+                    },
+                  }}
+                >
                   <ListItemAvatar>
-                    <Avatar src={contact.avatar}>
-                      {contact.name[0].toUpperCase()}
+                    <Avatar>
+                      {result.username?.[0]?.toUpperCase() || result.walletAddress[2]}
                     </Avatar>
                   </ListItemAvatar>
                   <ListItemText
-                    primary={contact.name}
-                    secondary={
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          fontFamily: 'monospace',
-                          fontSize: '0.8rem',
-                        }}
-                      >
-                        {contact.address}
-                      </Typography>
-                    }
+                    primary={result.username || truncateAddress(result.walletAddress)}
+                    secondary={result.username ? truncateAddress(result.walletAddress) : ''}
                   />
                   <ListItemSecondaryAction>
                     <IconButton
                       edge="end"
-                      onClick={() => handleSendPayment(contact.address)}
                       color="primary"
+                      onClick={() => handleSendPayment(result.walletAddress)}
                     >
                       <SendIcon />
                     </IconButton>
                   </ListItemSecondaryAction>
                 </ListItem>
               ))}
-              {!loading && contacts.length === 0 && (
+              {searchQuery.length >= 3 && searchResults.length === 0 && !loading && (
                 <ListItem>
                   <ListItemText
-                    primary="No contacts yet"
-                    secondary="Add your first contact to get started"
+                    primary="No users found"
+                    secondary="Try a different search term"
                   />
                 </ListItem>
               )}
             </List>
           </CardContent>
         </Card>
-
-        <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
-          <DialogTitle>Add New Contact</DialogTitle>
-          <DialogContent>
-            <TextField
-              fullWidth
-              label="Name"
-              value={newContact.name}
-              onChange={(e) =>
-                setNewContact({ ...newContact, name: e.target.value })
-              }
-              margin="normal"
-            />
-            <TextField
-              fullWidth
-              label="Wallet Address"
-              value={newContact.address}
-              onChange={(e) =>
-                setNewContact({ ...newContact, address: e.target.value })
-              }
-              margin="normal"
-              placeholder="0x..."
-            />
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-            <Button onClick={handleAddContact} variant="contained">
-              Add Contact
-            </Button>
-          </DialogActions>
-        </Dialog>
       </Box>
+
+      <Snackbar
+        open={!!error}
+        autoHideDuration={6000}
+        onClose={() => setError('')}
+        message={error}
+      />
     </Container>
   );
 };

@@ -9,14 +9,19 @@ import {
   CardContent,
   Alert,
   CircularProgress,
+  Snackbar,
 } from '@mui/material';
 import { usePrivy } from '@privy-io/react-auth';
 import { ethers } from 'ethers';
+import { transactionAPI } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const Send: React.FC = () => {
-  const { user } = usePrivy();
+  const { user: privyUser } = usePrivy();
+  const { user } = useAuth();
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
+  const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -40,30 +45,30 @@ const Send: React.FC = () => {
       // Convert amount to USDC units (6 decimals)
       const usdcAmount = ethers.parseUnits(amount, 6);
 
-      // Send payment
-      const response = await fetch('/api/payments/send', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          recipientAddress: recipient,
-          amount: usdcAmount.toString(),
-          senderPrivyWallet: user?.wallet?.address,
-        }),
+      // Create transaction
+      const { data: transaction } = await transactionAPI.createTransaction({
+        recipientAddress: recipient,
+        amount: usdcAmount.toString(),
+        note,
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Payment failed');
+      // Get signature from user's wallet
+      if (!privyUser?.wallet) {
+        throw new Error('Wallet not connected');
       }
+
+      // Execute transaction
+      const { data: executedTransaction } = await transactionAPI.executeTransaction(
+        transaction.id,
+        await privyUser.wallet.getPrivateKey()
+      );
 
       setSuccess('Payment sent successfully!');
       setRecipient('');
       setAmount('');
-    } catch (err: any) {
-      setError(err.message || 'Failed to send payment');
+      setNote('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send payment');
     } finally {
       setLoading(false);
     }
@@ -73,10 +78,10 @@ const Send: React.FC = () => {
     <Container maxWidth="sm">
       <Box sx={{ mt: 4 }}>
         <Typography variant="h4" component="h1" gutterBottom>
-          Send USDC
+          Send Payment
         </Typography>
 
-        <Card sx={{ mt: 2 }}>
+        <Card>
           <CardContent>
             <form onSubmit={handleSubmit}>
               <TextField
@@ -88,6 +93,7 @@ const Send: React.FC = () => {
                 variant="outlined"
                 placeholder="0x..."
                 disabled={loading}
+                required
               />
 
               <TextField
@@ -100,6 +106,19 @@ const Send: React.FC = () => {
                 type="number"
                 inputProps={{ min: "0", step: "0.000001" }}
                 disabled={loading}
+                required
+              />
+
+              <TextField
+                fullWidth
+                label="Note (optional)"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                margin="normal"
+                variant="outlined"
+                multiline
+                rows={2}
+                disabled={loading}
               />
 
               {error && (
@@ -108,30 +127,28 @@ const Send: React.FC = () => {
                 </Alert>
               )}
 
-              {success && (
-                <Alert severity="success" sx={{ mt: 2 }}>
-                  {success}
-                </Alert>
-              )}
-
               <Button
                 fullWidth
+                type="submit"
                 variant="contained"
                 color="primary"
-                type="submit"
+                size="large"
                 disabled={loading}
                 sx={{ mt: 3 }}
               >
-                {loading ? (
-                  <CircularProgress size={24} color="inherit" />
-                ) : (
-                  'Send Payment'
-                )}
+                {loading ? <CircularProgress size={24} /> : 'Send Payment'}
               </Button>
             </form>
           </CardContent>
         </Card>
       </Box>
+
+      <Snackbar
+        open={!!success}
+        autoHideDuration={6000}
+        onClose={() => setSuccess('')}
+        message={success}
+      />
     </Container>
   );
 };

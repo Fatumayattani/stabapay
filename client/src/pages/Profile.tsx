@@ -10,23 +10,45 @@ import {
   Avatar,
   Grid,
   Alert,
+  Snackbar,
+  CircularProgress,
 } from '@mui/material';
 import { usePrivy } from '@privy-io/react-auth';
+import { useAuth } from '../context/AuthContext';
+import { transactionAPI } from '../services/api';
+import { Transaction } from '../services/api';
 
 const Profile: React.FC = () => {
-  const { user, authenticated } = usePrivy();
-  const [displayName, setDisplayName] = useState('');
+  const { user: privyUser } = usePrivy();
+  const { user, updateProfile } = useAuth();
+  
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loadingTransactions, setLoadingTransactions] = useState(false);
 
   useEffect(() => {
-    if (authenticated && user) {
-      setDisplayName(user.displayName || '');
-      setEmail(user.email?.address || '');
+    if (user) {
+      setUsername(user.username || '');
+      setEmail(user.email || '');
+      fetchTransactions();
     }
-  }, [authenticated, user]);
+  }, [user]);
+
+  const fetchTransactions = async () => {
+    setLoadingTransactions(true);
+    try {
+      const { data } = await transactionAPI.getUserTransactions();
+      setTransactions(data);
+    } catch (err) {
+      console.error('Failed to fetch transactions:', err);
+    } finally {
+      setLoadingTransactions(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,75 +57,43 @@ const Profile: React.FC = () => {
     setSuccess('');
 
     try {
-      const response = await fetch(`/api/users/profile/${user?.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          displayName,
-          email,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update profile');
-      }
-
+      await updateProfile({ username, email });
       setSuccess('Profile updated successfully!');
-    } catch (err: any) {
-      setError(err.message || 'An error occurred');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update profile');
     } finally {
       setLoading(false);
     }
   };
 
+  const formatAmount = (amount: string) => {
+    return (parseInt(amount) / 1e6).toFixed(2);
+  };
+
   return (
     <Container maxWidth="md">
       <Box sx={{ mt: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Profile
-        </Typography>
-
         <Grid container spacing={4}>
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <Avatar
-                  src={user?.avatar?.url}
-                  sx={{
-                    width: 120,
-                    height: 120,
-                    margin: '0 auto',
-                    mb: 2,
-                  }}
-                />
-                <Typography variant="h6" gutterBottom>
-                  Wallet Address
-                </Typography>
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{
-                    wordBreak: 'break-all',
-                    fontFamily: 'monospace',
-                  }}
-                >
-                  {user?.wallet?.address || 'No wallet connected'}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
+          <Grid item xs={12} md={6}>
+            <Typography variant="h4" component="h1" gutterBottom>
+              Profile Settings
+            </Typography>
 
-          <Grid item xs={12} md={8}>
             <Card>
               <CardContent>
+                <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center' }}>
+                  <Avatar
+                    sx={{ width: 100, height: 100 }}
+                    src={privyUser?.avatar?.url}
+                  />
+                </Box>
+
                 <form onSubmit={handleSubmit}>
                   <TextField
                     fullWidth
-                    label="Display Name"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
+                    label="Username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
                     margin="normal"
                     variant="outlined"
                     disabled={loading}
@@ -112,12 +102,12 @@ const Profile: React.FC = () => {
                   <TextField
                     fullWidth
                     label="Email"
+                    type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     margin="normal"
                     variant="outlined"
                     disabled={loading}
-                    type="email"
                   />
 
                   {error && (
@@ -126,28 +116,84 @@ const Profile: React.FC = () => {
                     </Alert>
                   )}
 
-                  {success && (
-                    <Alert severity="success" sx={{ mt: 2 }}>
-                      {success}
-                    </Alert>
-                  )}
-
                   <Button
                     fullWidth
+                    type="submit"
                     variant="contained"
                     color="primary"
-                    type="submit"
                     disabled={loading}
                     sx={{ mt: 3 }}
                   >
-                    Save Changes
+                    {loading ? <CircularProgress size={24} /> : 'Save Changes'}
                   </Button>
                 </form>
               </CardContent>
             </Card>
           </Grid>
+
+          <Grid item xs={12} md={6}>
+            <Typography variant="h4" component="h2" gutterBottom>
+              Transaction History
+            </Typography>
+
+            <Card>
+              <CardContent>
+                {loadingTransactions ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                    <CircularProgress />
+                  </Box>
+                ) : transactions.length > 0 ? (
+                  <Box>
+                    {transactions.map((tx) => (
+                      <Box
+                        key={tx.id}
+                        sx={{
+                          py: 2,
+                          borderBottom: '1px solid',
+                          borderColor: 'divider',
+                          '&:last-child': { borderBottom: 'none' },
+                        }}
+                      >
+                        <Typography variant="subtitle1">
+                          {tx.senderId === user?.id ? 'Sent to' : 'Received from'}:{' '}
+                          {tx.senderId === user?.id
+                            ? tx.recipient?.username || tx.recipient?.walletAddress
+                            : tx.sender?.username || tx.sender?.walletAddress}
+                        </Typography>
+                        <Typography
+                          variant="h6"
+                          color={tx.senderId === user?.id ? 'error' : 'success'}
+                        >
+                          {tx.senderId === user?.id ? '-' : '+'}${formatAmount(tx.amount)} USDC
+                        </Typography>
+                        {tx.note && (
+                          <Typography variant="body2" color="text.secondary">
+                            Note: {tx.note}
+                          </Typography>
+                        )}
+                        <Typography variant="caption" color="text.secondary">
+                          {new Date(tx.createdAt).toLocaleString()}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Box>
+                ) : (
+                  <Typography color="text.secondary" align="center">
+                    No transactions yet
+                  </Typography>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
         </Grid>
       </Box>
+
+      <Snackbar
+        open={!!success}
+        autoHideDuration={6000}
+        onClose={() => setSuccess('')}
+        message={success}
+      />
     </Container>
   );
 };
